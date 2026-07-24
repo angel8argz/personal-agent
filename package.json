@@ -1,0 +1,9 @@
+{
+  "name": "tars",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "typecheck": "cd frontend && npx tsc --noEmit",
+    "test": "agent/.venv/bin/python agent/scripts/smoke_db.py"
+  }
+}

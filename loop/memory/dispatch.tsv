@@ -1,0 +1,7 @@
+date	task	rule	model	effort	notes
+2026-07-19	verify model choice + env facts, decide gemma4:12b	1 (decision)	claude-fable-5	high	read-only web verification; deviation #1 logged
+2026-07-19	db.py CRUD + ALLOWED_ROOTS wiring + smoke scripts	4 (spec complete)	claude-sonnet-5	medium	spec in HANDOFF step 2 + TODOs in db.py/file_tools.py; done_when met
+2026-07-19	fresh-context verify of step 1+2 done_when	1 (review)	claude-fable-5	high	read-only; verdict CONFIRMED, all 3 checks pass
+2026-07-23	transport decision: local HTTP (stdlib), no new deps	1 (decision)	claude-fable-5	high	read-only; resolves HANDOFF open question; logged to IMPLEMENTATION.md
+2026-07-23	Step 3: agent/server.py + Dashboard.tsx fetch wiring + smoke_http.py	4 (spec complete)	claude-sonnet-5	medium	spec from decision above; done_when met, no new deps
+2026-07-23	fresh-context verify of step 3 done_when	1 (review)	claude-fable-5	high	read-only; verdict PASS, all 4 checks pass, no scope creep

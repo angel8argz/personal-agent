@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python
+agent/.venv/
+__pycache__/
+*.pyc
+
+# Runtime/generated data — not source
+agent/db/tars.db
+agent/db/activity_log.jsonl
+loop/work-order.json
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+
+# Rust / Tauri build output
+frontend/src-tauri/target/

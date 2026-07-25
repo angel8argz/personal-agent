@@ -1,32 +1,19 @@
-"""Tier 2 (terminal), Tier 3 (browser), and Tier 4 (computer-use) tools.
+"""Tier 3 (browser) and Tier 4 (computer-use) tools.
 
-All stubs. Build these in this order (see HANDOFF.md for why), using
-tools/file_tools.py as the shape to follow: plain functions + a `Tool`
-declaration at the bottom, tier-tagged honestly.
+Still stubs. Build these in this order (see HANDOFF.md for why), using
+tools/file_tools.py or tools/terminal.py as the shape to follow: plain
+functions + a `Tool` declaration at the bottom, tier-tagged honestly.
 
 Do not wire these into the orchestrator's default tool list until they have
 real implementations — an unimplemented tool the model thinks it can call
 is worse than no tool at all.
+
+Tier 2 (terminal) is done and lives in tools/terminal.py.
 """
 
 from __future__ import annotations
 
 from tools.base import Tool
-
-# --- Tier 2: terminal ---------------------------------------------------
-
-# TODO(fable-5):
-#   - Maintain an allowlist of read-only-ish commands (ls, git status, cat,
-#     grep, ...) that run without confirmation.
-#   - Anything not on the allowlist must go through permissions.gate() and
-#     show the *exact* command string before running.
-#   - Run via subprocess with a timeout, capture stdout/stderr, cap output
-#     length the same way file_tools.read_file caps content length.
-#   - Never use shell=True with unsanitized input.
-
-def run_command(command: str) -> str:
-    raise NotImplementedError("Tier 2: implement allowlist + confirmation + subprocess execution")
-
 
 # --- Tier 3: browser automation -----------------------------------------
 
@@ -46,8 +33,10 @@ def browser_navigate(url: str) -> str:
 # --- Tier 4: full computer-use ------------------------------------------
 
 # TODO(fable-5):
-#   - Needs a vision-capable model variant (check current Gemma 3 vision
-#     support before assuming the same 9B text checkpoint works here).
+#   - Needs a vision-capable model. The default gemma4:12b already is one
+#     (see IMPLEMENTATION.md deviation #1), so this tier shouldn't need a
+#     second model family — but that's untested, so verify it on real
+#     screenshots before relying on it.
 #   - Loop shape: screenshot -> model interprets + picks an action ->
 #     pyautogui (or platform equivalent) executes -> screenshot again.
 #   - This is the highest blast-radius tier. Every action should be

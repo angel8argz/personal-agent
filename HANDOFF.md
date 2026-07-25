@@ -24,10 +24,17 @@ so decisions don't get silently re-litigated.
 - **Ollama, not raw llama.cpp / vLLM:** simplest path to a local OpenAI-ish API,
   handles GGUF quantization, has native tool-calling support so we're not hand-
   rolling a function-calling prompt format.
-- **Gemma 3 9B as the default, not 4B or 27B:** 4B is fast but noticeably weaker
-  at multi-step tool use; 27B likely won't fit comfortably in 6-12GB VRAM. 9B is
-  the balance point. This is a starting point, not a hard rule — if early testing
-  shows 9B is too slow or too weak, that's a legitimate reason to revisit.
+- **A mid-size Gemma as the default, not 4B or 27B:** 4B is fast but noticeably
+  weaker at multi-step tool use; 27B likely won't fit comfortably in 6-12GB VRAM.
+  The middle of the range is the balance point. This is a starting point, not a
+  hard rule — if early testing shows it's too slow or too weak, that's a
+  legitimate reason to revisit.
+  **Superseded 2026-07-19:** this originally specified `gemma3:9b`. That tag
+  doesn't exist (Ollama's gemma3 ships 270m/1b/4b/12b/27b — 9B was Gemma 2), and
+  gemma3 has no native tool-calling in Ollama, so every request would have failed.
+  The default is now `gemma4:12b` — same reasoning, nearest tag that satisfies it,
+  and its vision support gives Tier 4 a path without a second model family. See
+  IMPLEMENTATION.md "Deviation #1".
 - **Custom orchestrator instead of LangChain/LangGraph:** those frameworks add
   real overhead (both cognitive and runtime) that isn't worth it for a personal
   single-agent loop. If the tool-calling logic grows genuinely complex (parallel
@@ -80,7 +87,7 @@ Nothing here is production logic. Specifically:
 
 ## Immediate next steps, roughly in order
 
-1. Get `agent/main.py` running end-to-end against a real Ollama + Gemma 3
+1. Get `agent/main.py` running end-to-end against a real Ollama + Gemma
    install, exercising the Tier 1 file tools, before touching the frontend.
 2. Wire the SQLite schema into real CRUD in `agent/db/db.py` (currently just
    `init_db()`).

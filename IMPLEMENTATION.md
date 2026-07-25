@@ -109,3 +109,104 @@ TRIAGE/EXECUTE/GATE steps assume `git log`/`git worktree`/`git diff`/
 immediately for these reasons — that needs a decision (git init here?
 install gh/llm? run loop.sh from a different, already-git-initialized
 location?), not a portability patch.
+
+## Session 2026-07-24 — Step 4a: Tier 2 terminal (backend, CLI gate)
+
+HANDOFF step 4 is "Tier 2 (terminal) with the confirmation UI in the
+frontend." Split at the owner's direction: this session is the backend only,
+keeping the existing CLI confirmation. The frontend approval surface is 4b,
+and the confirmation UI *pattern* (HANDOFF's open question) stays deferred —
+`permissions.request_confirmation()` keeps its signature so the swap is
+drop-in, per its own TODO.
+
+- `agent/tools/terminal.py` (new) — real `run_command(command, cwd)`. No
+  shell ever: `shlex.split` to argv, `subprocess.run` without `shell=True`,
+  20s timeout, stdout/stderr captured and capped at 20k chars (same cap as
+  `file_tools.read_file`). Non-zero exits are returned as results for the
+  model to read, not raised.
+- `agent/tools/scoping.py` (new) — the project-root sandbox check, lifted
+  out of `file_tools._resolve_within_allowed` so Tier 1 and Tier 2 enforce
+  one boundary instead of two copies. `file_tools.py` now imports it.
+- Deviation from the stub's instructions: the stub told the next model to
+  implement `run_command` in `stubs.py` and to keep the allowlist there.
+  Both moved. A tier gets its own module (per ARCHITECTURE.md's "one module
+  per tier"), and the allowlist is *policy*, so it lives in
+  `permissions.py` — `base.py` is explicit that a tool must not decide its
+  own confirmation requirement.
+- `agent/tools/permissions.py` — `READ_ONLY_COMMANDS`,
+  `READ_ONLY_GIT_SUBCOMMANDS`, `FORBIDDEN_FLAGS`, and
+  `is_command_allowlisted()`. `gate()` auto-approves an allowlisted
+  `run_command`; everything else falls through to confirmation showing the
+  literal command. Three escape hatches closed deliberately:
+  1. `git -C <dir> …` would escape the sandboxed cwd, so only a bare
+     read-only subcommand in first position qualifies as allowlisted.
+  2. `find` is read-only until `-delete`/`-exec`, so those flags disqualify
+     it (`FORBIDDEN_FLAGS`).
+  3. `cat /etc/passwd` would otherwise inherit `cat`'s auto-approval —
+     path-looking args must resolve inside a registered root. Failing any of
+     these means "ask the user", never "block".
+- Design choice not specified by HANDOFF: `cwd` is a *required* tool
+  parameter rather than defaulting to some ambient directory, and it must
+  resolve inside a registered root. That makes every command's blast radius
+  an explicit, inspectable argument, and is a first concrete piece of the
+  "multi-project scoping" open question.
+- Shell operators (`|`, `>`, `&&`, …) are rejected as whole argv *tokens*
+  rather than substrings, with an error telling the model no shell exists.
+  Substring matching would have broken legitimately quoted regexes like
+  `grep 'foo$' file`.
+- `agent/scripts/smoke_terminal.py` (new) — the done_when check: execution,
+  non-zero exit, bad cwd, sandbox escape, piped command, unknown binary,
+  output cap, timeout, 7 allowlisted / 10 denied commands, and `gate()`
+  itself (auto-approves allowlisted, honours a denial, never prompts twice).
+  Needs no Ollama. Wired into `npm test` alongside smoke_db and smoke_http.
+- `agent/scripts/smoke_http.py` — was pinned to port 8766, which another
+  process on this machine now holds, so the check failed on a bind error
+  unrelated to what it tests. Switched to `PORT = 0` (OS picks) and read the
+  bound port back off `httpd.server_address`.
+
+Checks: `npm test` (all three smokes), `npm run typecheck`, and
+`smoke_e2e.py` against real Ollama all exit 0. Live verification that the
+model actually reaches for the tool: asked gemma4:12b to count lines in a
+file via the terminal — it called `run_command("wc -l notes.txt")`, the
+allowlist auto-approved it with no prompt, and the activity log recorded
+`tier: 2, approved: true`. No dependencies added.
+
+## Session 2026-07-25 — CLAUDE.md rewrite + stale model references
+
+CLAUDE.md had been rewritten to describe a native macOS stack (Swift/SwiftUI,
+MLX, SwiftData). No Swift exists in this repo — it's Python + Tauri/React —
+and that description also silently reversed two HANDOFF.md decisions marked
+don't-relitigate. Owner confirmed it was not a pivot, so CLAUDE.md now
+describes the stack as built.
+
+Also fixed four references in it that pointed at nothing:
+- `src/auth/`, `src/billing/`, `migrations/` — never existed here. Replaced
+  with what actually needs protecting: the gate and Tier 2 allowlist in
+  `tools/permissions.py`, the sandbox in `tools/scoping.py`, and
+  `tauri.conf.json`'s security config.
+- `STATE.md` — deleted with `loop/`, so the dependency law was unfollowable.
+  Dependency proposals now go to this file.
+- The `/goal` → `goals/<name>.md` law — `/goal` was part of the deleted
+  `loop/` harness and there is no `.claude/commands/`. Removed rather than
+  repaired; flagged to the owner as the one law dropped outright.
+- "inside any loop" in the effort cap — no referent post-`loop/`; reworded.
+
+Definition of done is now named commands (`npm test`, `npm run typecheck`,
+plus `smoke_e2e.py` for model-facing work, with its exit 2 called out as a
+skip rather than a pass). Added three laws that were already true in the
+code but unwritten: localhost-only binds, no `shell=True`, and no new
+dependency across pip/npm/Cargo. Added a Conventions section (tool-module
+shape, smoke-check requirement, BSD-userland gotchas). No commit-size law —
+owner's call.
+
+Stale `gemma3:9b` references cleaned up (README was already correct):
+- HANDOFF.md's model bullet keeps its original 4B/27B reasoning and gains a
+  "Superseded 2026-07-19" note. Erasing the rationale would lose *why*
+  mid-size was chosen, which is what stops a future agent dropping to 4B.
+- `model_client.py` claimed Ollama supports tool-calling "for tool-capable
+  models like Gemma 3" — backwards, and contradicted its own docstring eight
+  lines above. Now Gemma 4.
+- `stubs.py`'s Tier 4 TODO told the next agent to check Gemma 3 vision
+  support for "the same 9B text checkpoint". Both premises gone; rewritten to
+  note gemma4:12b already has vision, while keeping the instruction to verify
+  on real screenshots since that path is genuinely untested.

@@ -33,7 +33,7 @@ class ModelClient:
 
         `messages` follows the standard {"role": ..., "content": ...} shape.
         `tools` follows the OpenAI-style function-calling schema, which Ollama
-        supports natively for tool-capable models like Gemma 3.
+        supports natively for tool-capable models like Gemma 4.
 
         Returns the assistant message dict, which may contain:
           - "content": final text answer, and/or

@@ -22,8 +22,8 @@ AGENT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(AGENT_DIR))
 
 HOST = "127.0.0.1"
-PORT = 8766  # distinct from the real server's fixed 8765, to avoid clashing
-             # with a dev instance that may already be running
+PORT = 0  # let the OS pick a free port — a fixed one clashes with a dev
+          # instance, or with anything else already holding it
 
 
 def main() -> None:
@@ -42,11 +42,12 @@ def main() -> None:
         db.create_task(project_id, task_title, due_date=tomorrow)
 
         httpd = server.serve(HOST, PORT)
+        port = httpd.server_address[1]
         thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         thread.start()
         try:
             with urllib.request.urlopen(
-                f"http://{HOST}:{PORT}/projects", timeout=5
+                f"http://{HOST}:{port}/projects", timeout=5
             ) as resp:
                 assert resp.status == 200, f"expected 200, got {resp.status}"
                 projects = json.loads(resp.read())
@@ -54,7 +55,7 @@ def main() -> None:
             assert project_name in names, f"project not found in {names}"
 
             with urllib.request.urlopen(
-                f"http://{HOST}:{PORT}/tasks/upcoming?within_days=7", timeout=5
+                f"http://{HOST}:{port}/tasks/upcoming?within_days=7", timeout=5
             ) as resp:
                 assert resp.status == 200, f"expected 200, got {resp.status}"
                 tasks = json.loads(resp.read())

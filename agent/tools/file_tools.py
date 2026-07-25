@@ -1,44 +1,26 @@
 """Tier 1 tools: file & project operations, scoped to registered project dirs.
 
-These are the only tools in this scaffold with real (if minimal)
-implementations — everything else is a stub. Use these as the pattern for
-how Tier 2-4 tools should be shaped once they're built out.
+The pattern to follow for the other tiers: plain functions plus a `Tool`
+declaration at the bottom, with the sandbox boundary enforced through
+tools/scoping.py. Tier 2 lives in tools/terminal.py; Tiers 3-4 are still
+stubs in tools/stubs.py.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from db.db import list_project_roots
 from tools.base import Tool
-
-
-def _resolve_within_allowed(path_str: str) -> Path:
-    p = Path(path_str).expanduser().resolve()
-    roots = [Path(r).expanduser().resolve() for r in list_project_roots()]
-    if not roots:
-        raise PermissionError(
-            "No project directories registered yet. Add one via the dashboard "
-            "before TARS can touch files."
-        )
-    for root in roots:
-        try:
-            p.relative_to(root)
-            return p
-        except ValueError:
-            continue
-    raise PermissionError(f"'{p}' is outside all registered project directories")
+from tools.scoping import resolve_within_project_roots
 
 
 def read_file(path: str) -> str:
-    target = _resolve_within_allowed(path)
+    target = resolve_within_project_roots(path)
     if not target.is_file():
         raise FileNotFoundError(f"No such file: {target}")
     return target.read_text(errors="replace")[:20_000]  # cap for context safety
 
 
 def list_directory(path: str) -> str:
-    target = _resolve_within_allowed(path)
+    target = resolve_within_project_roots(path)
     if not target.is_dir():
         raise NotADirectoryError(f"Not a directory: {target}")
     entries = sorted(p.name + ("/" if p.is_dir() else "") for p in target.iterdir())
@@ -46,7 +28,7 @@ def list_directory(path: str) -> str:
 
 
 def write_file(path: str, content: str) -> str:
-    target = _resolve_within_allowed(path)
+    target = resolve_within_project_roots(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content)
     return f"Wrote {len(content)} chars to {target}"

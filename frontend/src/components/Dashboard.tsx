@@ -1,29 +1,18 @@
 // Dashboard wired to the local TARS agent HTTP server (agent/server.py) per
-// IMPLEMENTATION.md "Decision - Step 3 transport". Reads only; writes stay a
-// future step per ARCHITECTURE.md's steady-state data flow.
+// IMPLEMENTATION.md "Decision - Step 3 transport".
+//
+// Registering a project root here is what grants the Tier 1/2 tools access to
+// a directory (see agent/tools/scoping.py) — before this form existed, that
+// was only possible from a Python REPL.
 
-import { useEffect, useState } from "react";
-
-const AGENT_BASE = "http://127.0.0.1:8765";
-
-interface Project {
-  id: number;
-  name: string;
-  description?: string | null;
-  root_path?: string | null;
-  created_at?: string;
-}
-
-interface Task {
-  id: number;
-  project_id: number;
-  title: string;
-  notes?: string | null;
-  status: string;
-  due_date: string | null;
-  created_at?: string;
-  completed_at?: string | null;
-}
+import { useCallback, useEffect, useState } from "react";
+import {
+  createProject,
+  fetchProjects,
+  fetchUpcomingTasks,
+  type Project,
+  type Task,
+} from "../api";
 
 function statusLabel(status: string): string {
   if (status === "done") return "Done";
@@ -37,38 +26,47 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const [name, setName] = useState("");
+  const [rootPath, setRootPath] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-    async function load() {
-      try {
-        const [projectsRes, tasksRes] = await Promise.all([
-          fetch(`${AGENT_BASE}/projects`),
-          fetch(`${AGENT_BASE}/tasks/upcoming?within_days=7`),
-        ]);
-        if (!projectsRes.ok || !tasksRes.ok) {
-          throw new Error("agent responded with an error status");
-        }
-        const projectsData: Project[] = await projectsRes.json();
-        const tasksData: Task[] = await tasksRes.json();
-        if (!cancelled) {
-          setProjects(projectsData);
-          setTasks(tasksData);
-          setLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setError(true);
-          setLoading(false);
-        }
-      }
+  const load = useCallback(async () => {
+    try {
+      const [projectsData, tasksData] = await Promise.all([
+        fetchProjects(),
+        fetchUpcomingTasks(7),
+      ]);
+      setProjects(projectsData);
+      setTasks(tasksData);
+      setError(false);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
     }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function addProject(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving || name.trim() === "") return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      await createProject(name.trim(), rootPath.trim());
+      setName("");
+      setRootPath("");
+      await load();
+    } catch (e) {
+      setFormError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -101,30 +99,60 @@ export default function Dashboard() {
         <p className="subtitle">Local agent</p>
       </header>
 
-      <div className="project-columns">
-        {projects.map((project) => (
-          <section className="project-column" key={project.id}>
-            <h2>{project.name}</h2>
-            <ul className="task-list">
-              {tasks
-                .filter((task) => task.project_id === project.id)
-                .map((task) => (
-                  <li className={`task task-${task.status}`} key={task.id}>
-                    <span className="task-title">{task.title}</span>
-                    <span className="task-meta">
-                      <span className={`status-pill status-${task.status}`}>
-                        {statusLabel(task.status)}
-                      </span>
-                      {task.due_date && (
-                        <span className="task-due">Due {task.due_date}</span>
-                      )}
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          </section>
-        ))}
-      </div>
+      <form className="add-project" onSubmit={addProject}>
+        <input
+          type="text"
+          value={name}
+          placeholder="Project name"
+          onChange={(event) => setName(event.target.value)}
+        />
+        <input
+          type="text"
+          value={rootPath}
+          placeholder="Directory to grant access to (optional)"
+          onChange={(event) => setRootPath(event.target.value)}
+        />
+        <button type="submit" disabled={saving || name.trim() === ""}>
+          Add project
+        </button>
+      </form>
+      {formError && <p className="form-error">{formError}</p>}
+
+      {projects.length === 0 ? (
+        <p className="subtitle">
+          No projects yet. Add one above — TARS can't touch any directory until
+          it's registered here.
+        </p>
+      ) : (
+        <div className="project-columns">
+          {projects.map((project) => {
+            const projectTasks = tasks.filter((task) => task.project_id === project.id);
+            return (
+              <section className="project-column" key={project.id}>
+                <h2>{project.name}</h2>
+                {project.root_path && <p className="project-root">{project.root_path}</p>}
+                {projectTasks.length === 0 ? (
+                  <p className="project-empty">Nothing due this week.</p>
+                ) : (
+                  <ul className="task-list">
+                    {projectTasks.map((task) => (
+                      <li className={`task task-${task.status}`} key={task.id}>
+                        <span className="task-title">{task.title}</span>
+                        <span className="task-meta">
+                          <span className={`status-pill status-${task.status}`}>
+                            {statusLabel(task.status)}
+                          </span>
+                          {task.due_date && <span className="task-due">Due {task.due_date}</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

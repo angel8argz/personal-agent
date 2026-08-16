@@ -4,6 +4,6 @@
   "version": "0.1.0",
   "scripts": {
     "typecheck": "cd frontend && npx tsc --noEmit",
-    "test": "agent/.venv/bin/python agent/scripts/smoke_db.py && agent/.venv/bin/python agent/scripts/smoke_terminal.py && agent/.venv/bin/python agent/scripts/smoke_http.py"
+    "test": "agent/.venv/bin/python agent/scripts/smoke_db.py && agent/.venv/bin/python agent/scripts/smoke_terminal.py && agent/.venv/bin/python agent/scripts/smoke_confirm.py && agent/.venv/bin/python agent/scripts/smoke_http.py"
   }
 }

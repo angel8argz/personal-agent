@@ -107,14 +107,26 @@ def is_command_allowlisted(command: str) -> bool:
     return all(_path_arg_is_in_scope(a) for a in args)
 
 
-def request_confirmation(tool: Tool, args: dict) -> bool:
-    """Ask the user to approve a tool call.
+# How confirmations reach the user. Default is the stdin prompt below, for
+# `python3 main.py`. server.py installs a ConfirmationBroker instead, so the
+# prompt renders in the dashboard chat. Signature stays (tool, args) -> bool
+# either way, so the orchestrator and gate() never learn which is in use.
+_confirmation_provider = None
 
-    TODO(fable-5): this is a CLI stand-in. Replace with a real UI prompt
-    surfaced through the frontend (see HANDOFF.md open question on
-    confirmation UI pattern). Keep the function signature stable so the
-    orchestrator doesn't need to change when this gets a real UI.
-    """
+
+def set_confirmation_provider(provider) -> None:
+    """Install a `provider(tool_name, tier, args) -> bool`. Pass None to fall
+    back to the stdin prompt."""
+    global _confirmation_provider
+    _confirmation_provider = provider
+
+
+def request_confirmation(tool: Tool, args: dict) -> bool:
+    """Ask the user to approve a tool call."""
+    if _confirmation_provider is not None:
+        return _confirmation_provider(tool.name, tool.tier, args)
+
+    # CLI stand-in, used by agent/main.py when no UI is attached.
     print(f"\n[TARS] Wants to run tier {tool.tier} tool: {tool.name}")
     print(f"        args: {json.dumps(args)}")
     answer = input("        Approve? [y/N] ").strip().lower()

@@ -210,3 +210,45 @@ Stale `gemma3:9b` references cleaned up (README was already correct):
   support for "the same 9B text checkpoint". Both premises gone; rewritten to
   note gemma4:12b already has vision, while keeping the instruction to verify
   on real screenshots since that path is genuinely untested.
+
+## Session 2026-08-15 — Step 4b: Tier 2 confirmation UI (frontend approvals)
+
+HANDOFF step 4b — moving tool approval off the stdin CLI and into the
+dashboard, and resolving HANDOFF's open "confirmation UI pattern" question.
+Resolved as **inline chat-style approval**: the pending command renders in the
+same stream the user is reading, not a modal or side panel.
+
+- `agent/confirmations.py` (new) — `ConfirmationBroker` bridges the synchronous
+  orchestrator thread (blocks on a `threading.Event`) and the HTTP layer.
+  **Fails closed**: a decision that never arrives (300s timeout, closed window,
+  crashed frontend) is a denial, never an approval.
+- `agent/chat_session.py` (new) — runs each orchestrator invocation on a daemon
+  worker thread so the server stays responsive while a run waits on a
+  confirmation. Single conversation, single user, per ARCHITECTURE.md.
+- `agent/tools/permissions.py` — added `set_confirmation_provider()`. The gate's
+  `request_confirmation()` signature is unchanged, so neither the orchestrator
+  nor `gate()` learns whether approvals come from stdin or the UI. The old CLI
+  prompt stays as the fallback for `main.py` with no UI attached. Closes the
+  `TODO(fable-5)` on that function.
+- `agent/server.py` — grew from read-only into the agent's transport:
+  `POST /chat`, `GET /chat/run` (polled for answer + pending confirmations),
+  `POST /chat/confirm`, `POST /projects` (register a project root). `main()`
+  wires ModelClient → Orchestrator → ChatSession + broker.
+  **Security:** replaced `Access-Control-Allow-Origin: *` with an explicit
+  `ALLOWED_ORIGINS` allowlist (vite dev + packaged webview) on every method,
+  since writes and Tier 2 approvals now live here and loopback doesn't keep
+  other *pages* out. Body capped at 256KB. `TARS_PORT` env override (8765 is
+  not reserved); `VITE_AGENT_BASE` moves the frontend to match.
+- Frontend — `frontend/src/api.ts` (new, typed client), `ChatPanel.tsx` (new,
+  polls `/chat/run` every 400ms, renders the literal command, single-keypress
+  y/n approve/deny), `App.tsx` mounts it beside the dashboard, `Dashboard.tsx`
+  gains a project-registration form (registering a root is what grants the
+  tools directory access — previously only possible from a Python REPL).
+- `agent/scripts/smoke_confirm.py` (new) — done_when check for the broker
+  (approve, deny, timeout-denies, resolve of unknown id), wired into `npm test`.
+- `.gitignore` — ignore `frontend/.env.local` (local `VITE_AGENT_BASE`).
+
+Checks: `npm test` (smoke_db + smoke_terminal + smoke_confirm + smoke_http) and
+`npm run typecheck` both exit 0. No dependencies added. `smoke_e2e.py` (live
+Ollama, the model-facing check) not yet run this session — pending, per owner's
+sequencing (commit + PR first, then e2e).

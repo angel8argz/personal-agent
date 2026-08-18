@@ -17,3 +17,6 @@ frontend/dist/
 
 # Rust / Tauri build output
 frontend/src-tauri/target/
+
+# Local dev overrides
+frontend/.env.local
